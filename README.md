@@ -81,12 +81,33 @@ bun run dev
 
 L'application est disponible sur `http://localhost:3000` — connectez-vous avec un compte créé par `auth:init` (ex. `admin`).
 
-### Mode production
+### Mode production (auto-hébergement)
 
 ```bash
 bun run build     # build standalone
 bun run start     # serveur de production (port 3000, PORT configurable)
 ```
+
+### Déploiement sur Vercel
+
+Le fichier [`vercel.json`](./vercel.json) fige la configuration :
+
+- **`installCommand`** : `bun install` (versions identiques au `bun.lock` local — pas de dérive de version)
+- **`buildCommand`** : `bun run build` (le mode `standalone` est automatiquement désactivé sur Vercel via `VERCEL=1`)
+- **`regions`** : `iad1` (Washington D.C. — la plus proche de la base Neon `us-east-2`)
+- En-têtes de sécurité : `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`
+
+**Variables d'environnement à définir dans le dashboard Vercel** (Projet → Settings → Environment Variables) :
+
+| Variable | Valeur |
+|----------|--------|
+| `DATABASE_URL` | votre URL Neon pooled (`...-pooler.REGION.aws.neon.tech/DB?sslmode=require`) |
+| `AUTH_SECRET` | même valeur que le `.env` local (`openssl rand -hex 32`) — l'app refuse toute requête sans lui |
+
+> Les secrets ne sont jamais commités dans `vercel.json` — uniquement dans le dashboard Vercel.
+
+Chaque `git push` sur `main` redéploie automatiquement. Après un déploiement initial,
+créez les comptes de connexion avec `bun run auth:init` (agit sur la même base Neon).
 
 ### Données de démonstration (développement uniquement)
 
