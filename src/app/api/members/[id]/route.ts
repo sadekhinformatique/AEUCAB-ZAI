@@ -42,9 +42,48 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const before = await db.member.findUnique({ where: { id } })
+  const before = await db.member.findUnique({
+    where: { id },
+    include: {
+      user: { select: { username: true } },
+      _count: {
+        select: {
+          receipts: true,
+          payments: true,
+          votes: true,
+          electionCands: true,
+          borrows: true,
+          presences: true,
+          activities: true,
+          meetings: true,
+        },
+      },
+    },
+  })
   if (!before) return err("Membre introuvable", 404)
-  await db.member.delete({ where: { id } })
+
+  // Les relations Restrict (reçus, bulletins, candidatures, emprunts, compte
+  // utilisateur) empêchent une suppression SQL — on le signale clairement au
+  // lieu de renvoyer une erreur 500 générique.
+  const blockers: string[] = []
+  if (before._count.receipts > 0) blockers.push(`${before._count.receipts} reçu(s)`)
+  if (before._count.payments > 0) blockers.push(`${before._count.payments} paiement(s)`)
+  if (before._count.votes > 0) blockers.push(`${before._count.votes} bulletin(s) de vote`)
+  if (before._count.electionCands > 0) blockers.push(`${before._count.electionCands} candidature(s)`)
+  if (before._count.borrows > 0) blockers.push(`${before._count.borrows} emprunt(s)`)
+  if (before.user) blockers.push(`un compte utilisateur (${before.user.username})`)
+  if (blockers.length > 0) {
+    return err(
+      `Suppression impossible : le membre a ${blockers.join(", ")}. Passez-le au statut ARCHIVÉ pour le retirer des listes actives.`,
+      409
+    )
+  }
+
+  try {
+    await db.member.delete({ where: { id } })
+  } catch {
+    return err("Suppression impossible : enregistrements liés. Passez le membre au statut ARCHIVÉ.", 409)
+  }
   await audit({ action: "DELETE", entity: "Member", entityId: id, before, description: `Suppression membre ${before.matricule}` })
   return ok({ ok: true })
 }

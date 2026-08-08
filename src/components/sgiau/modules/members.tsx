@@ -124,8 +124,13 @@ export default function MembersModule() {
   async function remove(m: Member) {
     if (!confirm(`Supprimer le membre ${m.firstName} ${m.lastName} (${m.matricule}) ?`)) return
     const res = await fetch(`/api/members/${m.id}`, { method: "DELETE" })
-    if (res.ok) { toast.success("Membre supprimé"); load() }
-    else toast.error("Échec de la suppression")
+    if (res.ok) {
+      toast.success("Membre supprimé")
+      load()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data?.error || "Échec de la suppression")
+    }
   }
 
   async function openDetail(m: Member) {
