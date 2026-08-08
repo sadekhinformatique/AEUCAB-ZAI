@@ -67,22 +67,34 @@ bun install
 # 2. Configurer la base de données
 cp .env.example .env
 #   → éditer .env avec votre DATABASE_URL Neon PostgreSQL
+#   → générer puis renseigner AUTH_SECRET (openssl rand -hex 32)
 
 # 3. Créer le schéma
 bun run db:push
 
-# 4. Lancer le serveur dev
+# 4. Initialiser les comptes (mots de passe aléatoires, affichés une seule fois)
+bun run auth:init
+
+# 5. Lancer le serveur dev
 bun run dev
 ```
 
-L'application est disponible sur `http://localhost:3000`.
+L'application est disponible sur `http://localhost:3000` — connectez-vous avec un compte créé par `auth:init` (ex. `admin`).
 
-### Seed (données de démonstration)
+### Mode production
 
-Au premier chargement, cliquez sur **"Initialiser la démo"** dans la topbar, ou :
+```bash
+bun run build     # build standalone
+bun run start     # serveur de production (port 3000, PORT configurable)
+```
+
+### Données de démonstration (développement uniquement)
+
+En développement uniquement, un seed peuplé la base (64 membres, cotisations, reçus…) :
 ```bash
 curl -X POST http://localhost:3000/api/seed -H "Content-Type: application/json" -d '{"force":true}'
 ```
+Le seed est **désactivé en production** (HTTP 403).
 
 ## 📊 Rôles & permissions
 
@@ -99,20 +111,25 @@ curl -X POST http://localhost:3000/api/seed -H "Content-Type: application/json" 
 
 ## 🔒 Sécurité
 
-- `.env` gitigné (jamais committé)
-- Journal d'audit complet (before/after JSON sur chaque mutation)
-- Historique des connexions
-- Blocage après plusieurs erreurs (configurable)
-- Endpoints REST avec vérifications
+- Authentification réelle : mots de passe **bcrypt**, sessions signées HMAC (cookie `httpOnly`, `SameSite=Lax`)
+- Page de connexion `/login`, middleware protégeant toutes les routes (401 API / redirection pages)
+- Verrouillage du compte après 5 échecs (15 min), déverrouillage par un administrateur
+- RBAC : gestion des utilisateurs et journal d'audit réservés au rôle `ADMIN_IT`
+- `.env` gitigné (jamais committé) ; `AUTH_SECRET` obligatoire en production
+- Journal d'audit complet (before/after JSON sur chaque mutation), historique des sessions
+- Endpoints REST avec vérifications ; seed désactivé en production
 
 ## 📁 Structure
 
 ```
 src/
 ├── app/
-│   ├── api/           # 26+ routes REST (CRUD + audit)
+│   ├── api/           # 26+ routes REST (CRUD + audit + auth)
+│   ├── login/page.tsx # page de connexion
 │   ├── page.tsx       # App shell
 │   └── layout.tsx
+├── middleware.ts      # protection des routes (sessions)
+├── components/
 ├── components/
 │   ├── sgiau/
 │   │   ├── modules/   # 28 modules fonctionnels
